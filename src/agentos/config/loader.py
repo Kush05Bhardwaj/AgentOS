@@ -1,8 +1,10 @@
 """Load and validate AgentOS configuration files."""
 
 import os
+import re
 import tomllib
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 from platformdirs import user_config_path
@@ -16,6 +18,18 @@ from agentos.config.schema import (
 )
 
 CONFIG_ENV_VAR = "AGENTOS_CONFIG"
+
+_ENV_STRING_OVERRIDES = {
+    "AGENTOS_DEFAULT_PROVIDER": "default_provider",
+    "AGENTOS_DEFAULT_MODEL": "default_model",
+}
+
+_ENV_INTEGER_OVERRIDES = {
+    "AGENTOS_MAX_STEPS": "max_steps",
+    "AGENTOS_MAX_CONCURRENCY": "max_concurrency",
+    "AGENTOS_REQUEST_TIMEOUT_SECONDS": "request_timeout_seconds",
+    "AGENTOS_MAX_TOOL_OUTPUT_CHARS": "max_tool_output_chars",
+}
 
 _ROOT_KEYS = {"general", "defaults", "providers", "agents"}
 _GENERAL_KEYS = {
@@ -192,6 +206,66 @@ def parse_settings(document: object) -> Settings:
         raise ConfigurationError(str(exc)) from exc
 
 
+def apply_environment_overrides(
+    settings: Settings,
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> Settings:
+    """Apply supported environment-variable overrides to settings."""
+    environment = os.environ if environ is None else environ
+
+    general_overrides: dict[str, object] = {}
+    settings_overrides: dict[str, str] = {}
+
+    # String settings: default provider and model.
+    for env_name, setting_name in _ENV_STRING_OVERRIDES.items():
+        if env_name not in environment:
+            continue
+
+        value = environment[env_name]
+
+        if not value.strip():
+            raise ConfigurationError(f"{env_name} must not be empty.")
+
+        settings_overrides[setting_name] = value.strip()
+
+    # Workspace paths may contain spaces, so do not split them.
+    if "AGENTOS_WORKSPACE" in environment:
+        value = environment["AGENTOS_WORKSPACE"]
+
+        if not value.strip():
+            raise ConfigurationError("AGENTOS_WORKSPACE must not be empty.")
+
+        general_overrides["workspace"] = Path(value).expanduser()
+
+    # Numeric settings must be valid integers before schema validation.
+    for env_name, setting_name in _ENV_INTEGER_OVERRIDES.items():
+        if env_name not in environment:
+            continue
+
+        value = environment[env_name]
+
+        if not re.fullmatch(r"[+-]?\d+", value):
+            raise ConfigurationError(f"{env_name} must be an integer; received {value!r}.")
+
+        general_overrides[setting_name] = int(value)
+
+    try:
+        general = replace(
+            settings.general,
+            **general_overrides,
+        )
+
+        return replace(
+            settings,
+            general=general,
+            **settings_overrides,
+        )
+
+    except (TypeError, ValueError) as exc:
+        raise ConfigurationError(str(exc)) from exc
+
+
 def load_settings(
     config_path: str | Path | None = None,
     *,
@@ -214,7 +288,10 @@ def load_settings(
     except FileNotFoundError as exc:
         if must_exist:
             raise ConfigurationError(f"Configuration file not found: {path}") from exc
-        return Settings()
+        return apply_environment_overrides(
+            Settings(),
+            environ=environ,
+        )
 
     except tomllib.TOMLDecodeError as exc:
         raise ConfigurationError(f"Invalid TOML in '{path}': {exc}") from exc
@@ -226,6 +303,11 @@ def load_settings(
         raise ConfigurationError(f"Could not read configuration file '{path}': {exc}") from exc
 
     try:
-        return parse_settings(document)
+        settings = parse_settings(document)
     except ConfigurationError as exc:
         raise ConfigurationError(f"{path}: {exc}") from exc
+
+    return apply_environment_overrides(
+        settings,
+        environ=environ,
+    )

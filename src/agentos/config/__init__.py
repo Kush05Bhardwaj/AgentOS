@@ -2,6 +2,7 @@
 
 from agentos.config.loader import (
     ConfigurationError,
+    apply_environment_overrides,
     default_config_path,
     load_settings,
     parse_settings,
@@ -20,6 +21,7 @@ __all__ = [
     "GeneralSettings",
     "ProviderConfig",
     "Settings",
+    "apply_environment_overrides",
     "default_config_path",
     "load_settings",
     "parse_settings",

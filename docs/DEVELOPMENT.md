@@ -15,10 +15,10 @@ AgentOS targets Python 3.11+ and is designed to be developed and tested on Windo
     git clone https://github.com/Kush05Bhardwaj/AgentOS.git
     Set-Location AgentOS
     py -3.11 -m venv .venv
-    .venv/Scripts/python.exe -m pip install --upgrade pip
-    .venv/Scripts/python.exe -m pip install -e ".[dev]"
-    .venv/Scripts/python.exe -m pytest
-    .venv/Scripts/agentos.exe --help
+    .\.venv\Scripts\python.exe -m pip install --upgrade pip
+    .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+    .\.venv\Scripts\python.exe -m pytest
+    .\.venv\Scripts\agentos.exe --help
 
 ### Linux
 

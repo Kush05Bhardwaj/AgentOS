@@ -9,6 +9,7 @@ from agentos.providers.errors import (
     ProviderTimeoutError,
     RateLimitError,
 )
+from agentos.providers.factory import create_provider
 from agentos.providers.models import (
     ChatMessage,
     ChatRequest,
@@ -32,4 +33,5 @@ __all__ = [
     "ProviderError",
     "ProviderTimeoutError",
     "RateLimitError",
+    "create_provider",
 ]

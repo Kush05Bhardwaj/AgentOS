@@ -266,6 +266,71 @@ def apply_environment_overrides(
         raise ConfigurationError(str(exc)) from exc
 
 
+def apply_cli_overrides(
+    settings: Settings,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    workspace: str | Path | None = None,
+    max_steps: int | None = None,
+    max_concurrency: int | None = None,
+    request_timeout_seconds: int | None = None,
+    max_tool_output_chars: int | None = None,
+) -> Settings:
+    """Apply explicit CLI values after environment and file settings."""
+    general_overrides: dict[str, object] = {}
+    settings_overrides: dict[str, str] = {}
+
+    # Provider and model selections override configured defaults.
+    for name, value in (
+        ("default_provider", provider),
+        ("default_model", model),
+    ):
+        if value is None:
+            continue
+
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigurationError(f"CLI override '{name}' must be a non-empty string.")
+
+        settings_overrides[name] = value.strip()
+
+    # Workspace paths may contain spaces. Never split them.
+    if workspace is not None:
+        if isinstance(workspace, str) and not workspace.strip():
+            raise ConfigurationError("CLI override 'workspace' must not be empty.")
+
+        try:
+            general_overrides["workspace"] = Path(workspace).expanduser()
+        except (TypeError, ValueError) as exc:
+            raise ConfigurationError(f"Invalid CLI workspace path: {exc}") from exc
+
+    # Leave unspecified values unchanged. GeneralSettings validates
+    # types and allowed ranges when the replacement is constructed.
+    for name, value in (
+        ("max_steps", max_steps),
+        ("max_concurrency", max_concurrency),
+        ("request_timeout_seconds", request_timeout_seconds),
+        ("max_tool_output_chars", max_tool_output_chars),
+    ):
+        if value is not None:
+            general_overrides[name] = value
+
+    try:
+        updated_general = replace(
+            settings.general,
+            **general_overrides,
+        )
+
+        return replace(
+            settings,
+            general=updated_general,
+            **settings_overrides,
+        )
+
+    except (TypeError, ValueError) as exc:
+        raise ConfigurationError(str(exc)) from exc
+
+
 def load_settings(
     config_path: str | Path | None = None,
     *,

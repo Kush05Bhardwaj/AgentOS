@@ -1,5 +1,6 @@
 """Command-line entry point for AgentOS."""
 
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -8,6 +9,11 @@ from rich.table import Table
 
 from agentos import __version__
 from agentos.agents import list_agents
+from agentos.config import (
+    ConfigurationError,
+    apply_cli_overrides,
+    load_settings,
+)
 
 app = typer.Typer(
     name="agentos",
@@ -26,6 +32,7 @@ def _version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
+    ctx: typer.Context,
     version: Annotated[
         bool,
         typer.Option(
@@ -35,9 +42,63 @@ def main(
             help="Show the installed AgentOS version and exit.",
         ),
     ] = False,
+    config: Annotated[
+        Path | None,
+        typer.Option("--config", help="Path to the TOML configuration file."),
+    ] = None,
+    provider: Annotated[
+        str | None,
+        typer.Option("--provider", help="Override the default provider."),
+    ] = None,
+    model: Annotated[
+        str | None,
+        typer.Option("--model", help="Override the default model."),
+    ] = None,
+    workspace: Annotated[
+        Path | None,
+        typer.Option("--workspace", help="Override the workspace directory."),
+    ] = None,
+    max_steps: Annotated[
+        int | None,
+        typer.Option("--max-steps", help="Override the maximum execution steps."),
+    ] = None,
+    max_concurrency: Annotated[
+        int | None,
+        typer.Option("--max-concurrency", help="Override concurrent execution limit."),
+    ] = None,
+    request_timeout_seconds: Annotated[
+        int | None,
+        typer.Option(
+            "--request-timeout-seconds",
+            help="Override the model request timeout in seconds.",
+        ),
+    ] = None,
+    max_tool_output_chars: Annotated[
+        int | None,
+        typer.Option(
+            "--max-tool-output-chars",
+            help="Override the maximum tool output size.",
+        ),
+    ] = None,
 ) -> None:
     """AgentOS CLI."""
-    del version
+    try:
+        settings = load_settings(config_path=config)
+
+        ctx.obj = apply_cli_overrides(
+            settings,
+            provider=provider,
+            model=model,
+            workspace=workspace,
+            max_steps=max_steps,
+            max_concurrency=max_concurrency,
+            request_timeout_seconds=request_timeout_seconds,
+            max_tool_output_chars=max_tool_output_chars,
+        )
+
+    except ConfigurationError as exc:
+        typer.echo(f"Configuration error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
 
 
 @app.command()

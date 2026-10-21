@@ -18,6 +18,10 @@ from agentos.providers.models import (
     FinishReason,
     MessageRole,
 )
+from agentos.providers.selection import (
+    ModelSelection,
+    resolve_model_selection,
+)
 
 __all__ = [
     "AuthenticationError",
@@ -29,9 +33,11 @@ __all__ = [
     "FinishReason",
     "InvalidProviderResponseError",
     "MessageRole",
+    "ModelSelection",
     "ModelUnavailableError",
     "ProviderError",
     "ProviderTimeoutError",
     "RateLimitError",
     "create_provider",
+    "resolve_model_selection",
 ]

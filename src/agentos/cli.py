@@ -177,3 +177,76 @@ def ask(
         raise typer.Exit(code=1) from exc
 
     typer.echo(response.text)
+
+
+@app.command()
+def chat(
+    ctx: typer.Context,
+    agent_name: Annotated[
+        str | None,
+        typer.Option(
+            "--agent",
+            help="Use a specific agent profile, such as coder or architect.",
+        ),
+    ] = None,
+) -> None:
+    """Start an interactive chat session with a configured AI model."""
+    settings = ctx.obj
+
+    if not isinstance(settings, Settings):
+        typer.echo("Configuration error: resolved settings are unavailable.", err=True)
+        raise typer.Exit(code=2)
+
+    # Keep the explicit global CLI selections separate so a per-agent
+    # override cannot beat a --provider or --model flag.
+    parent_params = ctx.parent.params if ctx.parent is not None else {}
+
+    provider_override = parent_params.get("provider")
+    model_override = parent_params.get("model")
+
+    typer.echo("AgentOS interactive chat")
+    typer.echo("Type /exit or /quit to end the session.")
+    typer.echo("")
+
+    history: list[ChatMessage] = []
+
+    while True:
+        try:
+            prompt = typer.prompt("You")
+        except (EOFError, KeyboardInterrupt, typer.Abort):
+            typer.echo("")
+            typer.echo("Chat ended.")
+            return
+
+        stripped = prompt.strip()
+
+        if not stripped:
+            continue
+
+        if stripped in {"/exit", "/quit"}:
+            typer.echo("Chat ended.")
+            return
+
+        user_message = ChatMessage(role="user", content=stripped)
+        messages = (*history, user_message)
+
+        try:
+            response = asyncio.run(
+                complete_chat(
+                    settings,
+                    messages,
+                    agent_name=agent_name,
+                    provider_override=provider_override,
+                    model_override=model_override,
+                )
+            )
+        except ConfigurationError as exc:
+            typer.echo(f"Configuration error: {exc}", err=True)
+            raise typer.Exit(code=2) from exc
+        except ProviderError as exc:
+            typer.echo(f"Provider error: {exc}", err=True)
+            continue
+
+        history.append(user_message)
+        history.append(ChatMessage(role="assistant", content=response.text))
+        typer.echo(f"AgentOS: {response.text}")

@@ -6,6 +6,7 @@ from collections.abc import Mapping
 import pytest
 
 import agentos.runtime.chat as chat_runtime
+from agentos.agents import get_agent_profile
 from agentos.config import (
     AgentOverride,
     ConfigurationError,
@@ -110,8 +111,117 @@ def test_runtime_uses_agent_selection_and_closes_provider(
     assert fake.request is not None
     assert fake.request.model == "coding-model"
     assert fake.request.request_timeout_seconds == 45
-    assert fake.request.messages == sample_messages()
+
+    coder_profile = get_agent_profile("coder")
+    assert coder_profile is not None
+    assert fake.request.messages == (
+        ChatMessage(role="system", content=coder_profile.system_prompt),
+        *sample_messages(),
+    )
     assert fake.closed
+
+
+def test_agent_system_prompt_precedes_conversation_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(
+        default_provider="ollama",
+        default_model="general-model",
+    )
+    fake = FakeProvider()
+
+    monkeypatch.setattr(
+        chat_runtime,
+        "create_provider",
+        lambda *args, **kwargs: fake,
+    )
+
+    history = (
+        ChatMessage(role="user", content="Explain Python decorators."),
+        ChatMessage(role="assistant", content="They wrap functions."),
+        ChatMessage(role="user", content="Give me an example."),
+    )
+
+    asyncio.run(
+        chat_runtime.complete_chat(
+            settings,
+            history,
+            agent_name="architect",
+            environ={},
+        )
+    )
+
+    architect_profile = get_agent_profile("architect")
+    assert architect_profile is not None
+
+    assert fake.request is not None
+    assert fake.request.messages == (
+        ChatMessage(role="system", content=architect_profile.system_prompt),
+        *history,
+    )
+    assert fake.closed
+
+
+def test_requests_without_an_agent_preserve_message_sequence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(
+        default_provider="ollama",
+        default_model="general-model",
+    )
+    fake = FakeProvider()
+
+    monkeypatch.setattr(
+        chat_runtime,
+        "create_provider",
+        lambda *args, **kwargs: fake,
+    )
+
+    history = (
+        ChatMessage(role="user", content="Hello"),
+        ChatMessage(role="assistant", content="Hi"),
+        ChatMessage(role="user", content="How are you?"),
+    )
+
+    asyncio.run(
+        chat_runtime.complete_chat(
+            settings,
+            history,
+            environ={},
+        )
+    )
+
+    assert fake.request is not None
+    assert fake.request.messages == history
+    assert fake.closed
+
+
+def test_unknown_agent_fails_before_provider_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unexpected_factory(*args: object, **kwargs: object) -> ChatProvider:
+        pytest.fail("Provider must not be created for an unknown agent.")
+
+    monkeypatch.setattr(
+        chat_runtime,
+        "create_provider",
+        unexpected_factory,
+    )
+
+    settings = Settings(
+        default_provider="ollama",
+        default_model="general-model",
+    )
+
+    with pytest.raises(ConfigurationError, match="Unknown agent"):
+        asyncio.run(
+            chat_runtime.complete_chat(
+                settings,
+                sample_messages(),
+                agent_name="missing-agent",
+                environ={},
+            )
+        )
 
 
 def test_explicit_overrides_take_precedence_over_agent_settings(

@@ -1,5 +1,6 @@
 """Command-line entry point for AgentOS."""
 
+import asyncio
 from pathlib import Path
 from typing import Annotated
 
@@ -11,9 +12,13 @@ from agentos import __version__
 from agentos.agents import list_agents
 from agentos.config import (
     ConfigurationError,
+    Settings,
     apply_cli_overrides,
     load_settings,
 )
+from agentos.providers.errors import ProviderError
+from agentos.providers.models import ChatMessage
+from agentos.runtime import complete_chat
 
 app = typer.Typer(
     name="agentos",
@@ -119,3 +124,129 @@ def status() -> None:
     console.print("Status: [yellow]foundation scaffold[/yellow]")
     console.print("Available: CLI, version output, built-in agent profile listing")
     console.print("Not implemented yet: model providers, orchestration, and tool execution")
+
+
+@app.command()
+def ask(
+    ctx: typer.Context,
+    prompt: Annotated[
+        str,
+        typer.Argument(help="The question or task to send to the model."),
+    ],
+    agent_name: Annotated[
+        str | None,
+        typer.Option(
+            "--agent",
+            help="Use a specific agent profile, such as coder or architect.",
+        ),
+    ] = None,
+) -> None:
+    """Send a single prompt to a configured AI model."""
+    if not prompt.strip():
+        typer.echo("Prompt cannot be empty or whitespace.", err=True)
+        raise typer.Exit(code=2)
+
+    settings = ctx.obj
+
+    if not isinstance(settings, Settings):
+        typer.echo("Configuration error: resolved settings are unavailable.", err=True)
+        raise typer.Exit(code=2)
+
+    # Preserve the explicit global CLI selections separately.
+    # Otherwise, a per-agent override could incorrectly beat a CLI flag.
+    parent_params = ctx.parent.params if ctx.parent is not None else {}
+
+    provider_override = parent_params.get("provider")
+    model_override = parent_params.get("model")
+
+    try:
+        response = asyncio.run(
+            complete_chat(
+                settings,
+                (ChatMessage(role="user", content=prompt),),
+                agent_name=agent_name,
+                provider_override=provider_override,
+                model_override=model_override,
+            )
+        )
+    except ConfigurationError as exc:
+        typer.echo(f"Configuration error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    except ProviderError as exc:
+        typer.echo(f"Provider error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+    typer.echo(response.text)
+
+
+@app.command()
+def chat(
+    ctx: typer.Context,
+    agent_name: Annotated[
+        str | None,
+        typer.Option(
+            "--agent",
+            help="Use a specific agent profile, such as coder or architect.",
+        ),
+    ] = None,
+) -> None:
+    """Start an interactive chat session with a configured AI model."""
+    settings = ctx.obj
+
+    if not isinstance(settings, Settings):
+        typer.echo("Configuration error: resolved settings are unavailable.", err=True)
+        raise typer.Exit(code=2)
+
+    # Keep the explicit global CLI selections separate so a per-agent
+    # override cannot beat a --provider or --model flag.
+    parent_params = ctx.parent.params if ctx.parent is not None else {}
+
+    provider_override = parent_params.get("provider")
+    model_override = parent_params.get("model")
+
+    typer.echo("AgentOS interactive chat")
+    typer.echo("Type /exit or /quit to end the session.")
+    typer.echo("")
+
+    history: list[ChatMessage] = []
+
+    while True:
+        try:
+            prompt = typer.prompt("You")
+        except (EOFError, KeyboardInterrupt, typer.Abort):
+            typer.echo("")
+            typer.echo("Chat ended.")
+            return
+
+        stripped = prompt.strip()
+
+        if not stripped:
+            continue
+
+        if stripped in {"/exit", "/quit"}:
+            typer.echo("Chat ended.")
+            return
+
+        user_message = ChatMessage(role="user", content=stripped)
+        messages = (*history, user_message)
+
+        try:
+            response = asyncio.run(
+                complete_chat(
+                    settings,
+                    messages,
+                    agent_name=agent_name,
+                    provider_override=provider_override,
+                    model_override=model_override,
+                )
+            )
+        except ConfigurationError as exc:
+            typer.echo(f"Configuration error: {exc}", err=True)
+            raise typer.Exit(code=2) from exc
+        except ProviderError as exc:
+            typer.echo(f"Provider error: {exc}", err=True)
+            continue
+
+        history.append(user_message)
+        history.append(ChatMessage(role="assistant", content=response.text))
+        typer.echo(f"AgentOS: {response.text}")

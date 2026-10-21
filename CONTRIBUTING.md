@@ -2,38 +2,33 @@
 
 Thanks for your interest in contributing to AgentOS. The project aims to make multi-agent AI workflows useful in the terminal while remaining portable across Linux and Windows.
 
-> **Current status:** This is a starter contribution guide for the planned repository. Confirm the commands and policies against the implementation as it evolves.
+The repository is in pre-alpha. Start with the [README](README.md), [MVP scope](docs/MVP_SCOPE.md), and [repository structure](docs/REPOSITORY_STRUCTURE.md). Features in the roadmap may not exist yet; please avoid assuming that planned capabilities are implemented.
 
 ## Before you start
 
-1. Read the project [README](README.md), [MVP scope](docs/MVP_SCOPE.md), and [repository structure](docs/REPOSITORY_STRUCTURE.md).
-2. Search existing issues and pull requests before opening a duplicate.
-3. For a large change, open an issue first to agree on scope and design.
-4. Never include API keys, personal data, private source code, or other secrets in issues, logs, fixtures, or commits.
+1. Search existing issues and pull requests before opening a duplicate.
+2. For a large change, open an issue first to agree on scope and design.
+3. Never include API keys, personal data, private source code, or other secrets in issues, logs, fixtures, or commits.
 
 ## Development setup
 
-The project is planned for Python 3.11+; the exact supported versions will be confirmed in `pyproject.toml`.
+AgentOS targets Python 3.11+. Follow [Development Setup](docs/DEVELOPMENT.md) for Windows and Linux commands.
 
-```bash
-git clone <your-fork-url>
-cd agentos
-python -m venv .venv
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
-```
+The intended development dependencies are installed with:
 
-Activate the virtual environment using the instructions for your shell. The editable install command becomes valid once packaging metadata and development dependencies are implemented.
+    python -m pip install -e ".[dev]"
+
+Activate the virtual environment using your shell's normal workflow, or invoke Python and AgentOS directly from the virtual environment.
 
 ## Cross-platform expectations
 
 - Test on Linux and Windows whenever possible.
-- Use `pathlib` rather than hardcoded path separators.
+- Use pathlib rather than hardcoded path separators.
 - Avoid assuming Bash or POSIX-only utilities are available.
-- Put OS-specific behavior behind interfaces in `src/agentos/platform/`.
+- Put OS-specific behavior behind interfaces in src/agentos/platform/ as that layer is implemented.
 - Prefer Python APIs over shell commands when the same operation can be performed safely in-process.
 - If shell execution is necessary, use argument lists, a working-directory boundary, timeouts, output limits, and explicit user approval.
-- Do not make `tmux` or PowerShell a mandatory dependency of the core.
+- Do not make tmux or PowerShell a mandatory dependency of the core.
 
 ## Code guidelines
 
@@ -49,15 +44,13 @@ Activate the virtual environment using the instructions for your shell. The edit
 
 ## Tests and quality checks
 
-The exact commands will be finalized with the first implementation. The intended baseline is:
+Run the following from the project virtual environment:
 
-```bash
-python -m pytest
-ruff check .
-ruff format --check .
-```
+    python -m pytest
+    ruff check .
+    ruff format --check .
 
-If a type checker is adopted, its check should be included in CI and documented here. Run the full test suite on both Linux and Windows before merging platform-sensitive changes.
+Run the full test suite on both Linux and Windows before merging platform-sensitive changes.
 
 Tests should cover, where relevant:
 
@@ -83,32 +76,21 @@ A PR should not be merged if it breaks supported-platform CI, weakens approval b
 
 ## Commit messages
 
-Use clear, imperative messages. A lightweight convention is encouraged:
+Clear, imperative messages are encouraged. Examples:
 
-- `feat: add provider interface`
-- `fix: handle Windows config paths`
-- `test: cover command timeout behavior`
-- `docs: clarify agent permission model`
-- `refactor: isolate process adapter`
-
-Conventional Commits are a suggested convention, not a hard requirement unless the maintainers later adopt it formally.
+- feat: add provider interface
+- fix: handle Windows config paths
+- test: cover command timeout behavior
+- docs: clarify agent permission model
+- refactor: isolate process adapter
 
 ## Issues and bug reports
 
-Include:
-
-- A concise title and expected behavior.
-- OS and version (Linux distribution or Windows version).
-- Python version and installation method.
-- Minimal reproduction steps.
-- Relevant logs with secrets and personal data removed.
-- Whether the issue reproduces on both supported platforms.
-
-For provider bugs, include the provider type and a sanitized error response, never an API key.
+Include the expected behavior, OS and version, Python version, minimal reproduction steps, sanitized logs, and whether the issue reproduces on both supported platforms. Never include API keys or private source code.
 
 ## Security issues
 
-Do not publish exploitable vulnerabilities or secrets in a public issue. Until a private security reporting channel is configured, contact the maintainers through a private channel listed in the repository profile. Do not claim a formal security response SLA unless one has been established.
+Do not publish exploitable vulnerabilities or secrets in a public issue. A private reporting channel still needs to be configured by maintainers; until then, do not post sensitive exploit details in public discussions.
 
 ## Scope and compatibility
 
@@ -116,4 +98,4 @@ The first MVP prioritizes Linux and Windows, with macOS considered later. New fe
 
 ## License
 
-By submitting a contribution, you agree that it may be distributed under the project’s MIT License. Ensure you have the right to contribute the code and that any copied material is compatible with the project license.
+By submitting a contribution, you agree that it may be distributed under the project's MIT License. Ensure you have the right to contribute the code and that any copied material is compatible with the project license.

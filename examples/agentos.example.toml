@@ -1,0 +1,29 @@
+# Example configuration shape for a future AgentOS runtime.
+# This file is documentation only; config loading is not implemented yet.
+# Never place real API keys in a committed file.
+
+[general]
+workspace = "."
+max_steps = 8
+max_concurrency = 2
+
+[model]
+provider = "ollama"
+name = "your-local-model"
+
+[agents.architect]
+enabled = true
+
+[agents.coder]
+enabled = true
+
+[agents.researcher]
+enabled = true
+
+[agents.reviewer]
+enabled = true
+
+[permissions]
+filesystem_read = true
+filesystem_write_requires_approval = true
+process_execution_requires_approval = true

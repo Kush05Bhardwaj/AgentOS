@@ -4,7 +4,11 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Protocol
+
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
 
 from agentos.config.defaults import (
     MAX_TOOL_OUTPUT_MAXIMUM,
@@ -14,13 +18,31 @@ from agentos.config.defaults import (
 _NAME_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,63}")
 
 
+def _deep_freeze(value: object) -> object:
+    """Return an immutable deep copy of a JSON-like structure.
+
+    Objects become read-only mappings and arrays become tuples, so no
+    part of a frozen schema can be mutated through a later reference.
+    """
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _deep_freeze(item) for key, item in value.items()})
+
+    if isinstance(value, (list, tuple)):
+        return tuple(_deep_freeze(item) for item in value)
+
+    return value
+
+
 @dataclass(frozen=True, slots=True)
 class ToolDefinition:
     """Public metadata describing a tool and its argument contract.
 
-    The parameters schema follows JSON Schema conventions so model
+    The parameters schema follows JSON Schema Draft 2020-12 so model
     providers can render it as tool/function declarations without
-    adapter-specific translation.
+    adapter-specific translation. The schema is validated and stored as
+    a deep-frozen snapshot: mutating the original mapping after
+    construction, or mutating any structure retrieved from the
+    definition, cannot change the tool's validation rules.
     """
 
     name: str
@@ -29,7 +51,7 @@ class ToolDefinition:
     approval_required: bool = True
 
     def __post_init__(self) -> None:
-        """Validate the name, description, schema envelope, and policy flag."""
+        """Validate metadata, then store a deep-frozen snapshot of the schema."""
         if not isinstance(self.name, str) or _NAME_PATTERN.fullmatch(self.name) is None:
             raise ValueError("Tool name must match [a-z][a-z0-9_]{0,63}.")
 
@@ -62,7 +84,14 @@ class ToolDefinition:
         if type(self.approval_required) is not bool:
             raise ValueError("approval_required must be a boolean.")
 
-        object.__setattr__(self, "parameters_schema", dict(schema))
+        try:
+            Draft202012Validator.check_schema(dict(schema))
+        except (SchemaError, TypeError) as exc:
+            raise ValueError(
+                "parameters_schema must be a valid JSON Schema (Draft 2020-12)."
+            ) from exc
+
+        object.__setattr__(self, "parameters_schema", _deep_freeze(schema))
 
 
 @dataclass(frozen=True, slots=True)

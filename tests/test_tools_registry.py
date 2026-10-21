@@ -60,7 +60,10 @@ def test_valid_tool_metadata_is_accepted() -> None:
 
     assert definition.name == name
     assert definition.description == "Read a file from the workspace."
-    assert definition.parameters_schema == sample_schema()
+    assert definition.parameters_schema["type"] == "object"
+    assert definition.parameters_schema["properties"] == {"path": {"type": "string"}}
+    assert tuple(definition.parameters_schema["required"]) == ("path",)
+    assert definition.parameters_schema["additionalProperties"] is False
 
 
 @pytest.mark.parametrize(
@@ -261,3 +264,48 @@ def test_tool_context_rejects_invalid_output_limits(
 ) -> None:
     with pytest.raises(ValueError, match="max_output_chars"):
         ToolContext(workspace=tmp_path, max_output_chars=value)
+
+
+def test_mutating_original_schema_after_construction_is_isolated() -> None:
+    schema = sample_schema()
+    definition = make_definition(parameters_schema=schema)
+
+    schema["properties"]["path"] = {"type": "number"}
+    schema["additionalProperties"] = True
+    schema["required"] = []
+
+    assert definition.parameters_schema["properties"] == {"path": {"type": "string"}}
+    assert definition.parameters_schema["additionalProperties"] is False
+    assert tuple(definition.parameters_schema["required"]) == ("path",)
+
+
+def test_retrieved_schema_cannot_be_mutated() -> None:
+    definition = make_definition()
+    schema = definition.parameters_schema
+
+    with pytest.raises(TypeError):
+        schema["additionalProperties"] = True
+    with pytest.raises(TypeError):
+        schema["properties"]["path"] = {"type": "number"}
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"type": "object", "properties": {"x": 5}, "additionalProperties": False},
+        {
+            "type": "object",
+            "properties": {"x": {"type": "bogus"}},
+            "additionalProperties": False,
+        },
+        {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+            "maxProperties": "two",
+        },
+    ],
+)
+def test_malformed_json_schemas_are_rejected(schema: object) -> None:
+    with pytest.raises(ValueError, match="valid JSON Schema"):
+        make_definition(parameters_schema=schema)

@@ -4,7 +4,7 @@
 
 AgentOS is a terminal-first project designed to route tasks to specialized AI agents, coordinate their work, and present results in one consistent interface. Linux and Windows are first-class targets from the first MVP.
 
-> **Status: Pre-alpha foundation.** The repository now contains an installable CLI scaffold and built-in agent profile metadata. Model providers, task orchestration, memory, and tool execution are not implemented yet.
+> **Status: Pre-alpha foundation.** The repository contains an installable CLI scaffold and built-in agent profile metadata. Model providers, task orchestration, memory, and tool execution are not implemented yet.
 
 ## Vision
 
@@ -51,10 +51,10 @@ Requires Python 3.11 or newer.
     git clone https://github.com/Kush05Bhardwaj/AgentOS.git
     Set-Location AgentOS
     py -3.11 -m venv .venv
-    .venv/Scripts/python.exe -m pip install -e ".[dev]"
-    .venv/Scripts/agentos.exe --help
-    .venv/Scripts/agentos.exe agents
-    .venv/Scripts/python.exe -m pytest
+    .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+    .\.venv\Scripts\agentos.exe --help
+    .\.venv\Scripts\agentos.exe agents
+    .\.venv\Scripts\python.exe -m pytest
 
 ### Linux
 

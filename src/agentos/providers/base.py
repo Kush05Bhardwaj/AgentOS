@@ -21,3 +21,11 @@ class ChatProvider(ABC):
             ProviderError: Any provider failure, using the most specific
                 subclass that describes the problem.
         """
+
+    async def aclose(self) -> None:
+        """Release provider resources.
+
+        Stateless providers can use this default implementation.
+        Providers that own HTTP clients should override it.
+        """
+        return None
